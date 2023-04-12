@@ -39,3 +39,102 @@ MixCure_AH_MPL.control =
     out
   }
   
+# bins_mpl: Function to determine bins and bin length  
+# input:
+#   control: model parameters in MixCure_AH_MPL.control (control = MixCure_AH_MPL.control())
+#   t_i1: observed time for left censoring, uncensoring, right censoring and left-end point of finite interval censoring
+#   t_i2: observed time for right-end point of finite interval censoring
+#   ctype: a matrix for censoring indicators
+#   example:              ctype
+#          t_i1    t_i2     r    e    l     i
+#           a        1      NA   NA   TRUE  NA   (left censored at a)
+#           b        1      TRUE NA   NA    NA   (right censored at b)
+#           c        d      NA   NA   NA    TRUE (finite interval censored between (c, d))
+#           f        1      NA   TRUE NA    NA   (exactly observed at f)
+# output:
+#   m: number of bins
+#   Alpha: edge points at each bin
+#   Delta: bin length
+bins_mpl = function (control, t_i1, t_i2, ctype) 
+{
+  event = c(t_i1[ctype[, "e"]], t_i1[ctype[, "i"]], t_i2[ctype[, "i"]], 
+            t_i1[ctype[, "l"]])
+  count = control$n.obs_basis
+  order_event = sort(event)
+  n.obs = length(order_event)
+  m = ceiling(n.obs/count)
+  Alpha = matrix(0, m + 1, 1)
+  for (j in 2:m){
+    Alpha[j] = order_event[(j-1) * count]
+  }
+  t.obs = c(t_i1[ctype[, "i"]], t_i2[ctype[, "i"]], 
+            t_i1[ctype[, "e"]], t_i1[ctype[, "r"]], t_i1[ctype[, "l"]])
+  Alpha[m + 1] = max(t.obs)
+  Delta = diff(Alpha)
+  list(m = m, Alpha = Alpha, Delta = Delta)
+}
+
+# penalty_mpl: R matrix in the penalty term 
+# input:
+#   bins: output of the function bins_mpl (bins = bins_mpl(control, t_i1, t_i2, ctype))
+# output:
+#   M_R_mm: R matrix in the penalty term
+penalty_mpl = function (bins) 
+{
+  m = bins$m
+  M_R_mm = matrix(0, m, m)
+  for (u in 1:m){
+    M_R_mm[u, u] = 6
+  }
+  for (u in 1: (m-1)){
+    M_R_mm[u+1, u] = -4
+    M_R_mm[u, u+1] = -4
+  }
+  for (u in 1: (m-2)){
+    M_R_mm[u, u+2] = 1
+    M_R_mm[u+2, u] = 1
+  }
+  M_R_mm[1, 1] = M_R_mm[m, m] = 1
+  M_R_mm[2, 2] = M_R_mm[m-1, m-1] = 5
+  M_R_mm[2, 1] = M_R_mm[1, 2] = M_R_mm[m, m-1] = M_R_mm[m-1, m] = -2
+  return(M_R_mm)
+}
+
+# basis_mpl: Function to determine basis for approximating baseline hazards
+# input: 
+#   x: time points to be evaluated
+#   bins: output of the function bins_mpl
+#   which: 1 for baseine hazard and 2 for cumulative haseline hazard
+# output:
+#   M_psi_nm: basis for baseline hazard
+#   M_Psi_nm: basis for cumulative haseline hazard
+basis_mpl = function(x, bins, which = c(1, 2)) 
+{
+  which.matrix = rep(T, 2)
+  which.matrix[-which] = FALSE
+  n = length(x)
+  Alpha = bins$Alpha
+  Delta = bins$Delta
+  m = bins$m
+  M_Psi_nm = M_psi_nm = matrix(0, n, m)
+  u_i = sapply(x, function(y, lim = Alpha[-1L]) sum(lim < y) + 1L)
+  for (i in 1:n) {
+    M_psi_nm[i, u_i[i]] = 1
+    M_Psi_nm[i, 1:u_i[i]] = c(if (u_i[i] > 1) {
+      Delta[1:(u_i[i] - 1)]
+    }, x[i] - Alpha[u_i[i]])
+  }
+  if (all(which.matrix)) {
+    list(psi = M_psi_nm, Psi = M_Psi_nm)
+  }
+  else {
+    if (which.matrix[1]) {
+      M_psi_nm
+    }
+    else {
+      M_Psi_nm
+    }
+  }
+}
+
+
