@@ -1,0 +1,41 @@
+# MixCure_AH_MPL.control: Function to control model parameters 
+# n: sample size
+# smooth: smooth parameter
+# n.obs_basis: number of observed time points per uniform basis
+# max.iter: a vector with the first value defining the maximum number of iterations for selecting the smooth parameter,
+#           the second value the maximum number of iterations for estimating the Theta, Beta and Gamma parameters, and
+#           the third value the total number of iterations allowed.
+# tol_1: convergence tolerance value for the Primal-Dual (PD) interior point algorithm.
+# tol_2: convergence tolerance value for the smooth value selection algorithm
+# tau: parameter in PD interior point algorithm
+# min.theta: the minimal baseline hazard estimate value, below which the theta estimates will be considered to be 0.
+MixCure_AH_MPL.control = 
+  function (n, smooth = 2000, n.obs_basis = 10, max.iter = c(100, 300, 5000), 
+            tol_1 = 1e-10, tol_2 = 1e-5, tau = 1000, min.theta = 1e-10) 
+  {
+    if (!is.null(smooth)) {
+      smooth = ifelse(smooth < 0, 1000, smooth)
+    }
+    else {
+      smooth = 1000
+    }
+    if (!is.null(n.obs_basis)) {
+      n.obs_basis = ifelse(n.obs_basis < 1 | n.obs_basis > 
+                             floor(n/2), round(n^(1/5)), round(n.obs_basis))
+    }
+    else {
+      n.obs_basis = round(n^(1/5))
+    }
+    max.iter = c(ifelse(max.iter[1] > 0, as.integer(max.iter[1]), 100), 
+                 ifelse(max.iter[2] > 0, as.integer(max.iter[2]), 300), 
+                 ifelse(length(max.iter) == 2, 5000, 
+                        ifelse(max.iter[3] > ifelse(max.iter[2] > 0, as.integer(max.iter[2]), 5000), as.integer(max.iter[3]), 5000)))
+    tol_1 = ifelse(tol_1 > 0 & tol_1 < 1, tol_1, 1e-10)
+    tol_2 = ifelse(tol_2 > 0, tol_2, 1e-3)
+    min.theta = ifelse(min.theta > 0 & min.theta < 0.001, min.theta, 
+                       1e-10)
+    out = list(smooth = smooth, n.obs_basis = n.obs_basis, max.iter = max.iter, 
+               tol_1 = tol_1, tol_2 = tol_2, tau = tau, min.theta = min.theta)
+    out
+  }
+  
